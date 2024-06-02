@@ -1,7 +1,7 @@
 --DDL Table Jenis_Barang
 CREATE TABLE JENIS_BARANG(
     id_jenis_barang          CHAR(5) NOT NULL,
-    deskripsi_jenis_barang   VARCHAR(100) NOT NULL,
+    deskripsi_jenis_barang   VARCHAR(100) NOT NULL
 );
 
 ALTER TABLE JENIS_BARANG ADD CONSTRAINT jenis_barang_pk PRIMARY KEY(id_jenis_barang);
@@ -13,11 +13,10 @@ CREATE TABLE BARANG(
     jumlah_stok         INT,
     batas_pinjam        INT,
     dendaPerHari        INT,
-    id_jenis_barang     CHAR(5) NOT NULL,
+    id_jenis_barang     CHAR(5) NOT NULL
 );
-
-
 ALTER TABLE BARANG ADD CONSTRAINT barang_pk PRIMARY KEY(id_barang);
+ALTER TABLE BARANG ADD CONSTRAINT barang_fk FOREIGN KEY(id_jenis_barang) REFERENCES JENIS_BARANG(id_jenis_barang);
 
 --DDL Table Divisi
 CREATE TABLE DIVISI(
@@ -42,7 +41,7 @@ CREATE TABLE ANGGOTA(
     nama_anggota        VARCHAR(100) NOT NULL,
     nim_anggota         CHAR(9) NOT NULL,
     id_divisi           CHAR(4) NOT NULL,
-    id_sub_divisi       CHAR(4) NOT NULL,
+    id_sub_divisi       CHAR(4) NOT NULL
 );
 
 ALTER TABLE ANGGOTA ADD CONSTRAINT anggota_pk PRIMARY KEY(id_anggota);
@@ -57,7 +56,7 @@ CREATE TABLE KEUANGAN_DIVISI(
     pemasukkan   INT,
     pengeluaran  INT,
     keterangan   VARCHAR(255),
-    saldo        INT NOT NULL,
+    saldo        INT NOT NULL
 );
 
 ALTER TABLE KEUANGAN_DIVISI ADD CONSTRAINT keuangan_divisi_pk PRIMARY KEY(id_divisi, tanggal);
@@ -70,12 +69,12 @@ CREATE TABLE MEMINJAM(
     tanggal_pinjam          TIMESTAMP NOT NULL,
     tanggal_pengembalian    TIMESTAMP,
     jumlah_pinjam           INT NOT NULL,
-    denda                   INT,
+    denda                   INT
 );
 
 ALTER TABLE MEMINJAM
 ADD CONSTRAINT meminjam_anggota_fk FOREIGN KEY(id_anggota)
-REFERENCES ANGGOTA(id_anggota)
+REFERENCES ANGGOTA(id_anggota);
 
 ALTER TABLE MEMINJAM
 ADD CONSTRAINT meminjam_barang_fk FOREIGN KEY(id_barang)
@@ -84,4 +83,4 @@ REFERENCES BARANG(id_barang);
 ALTER TABLE MEMINJAM
 ADD CONSTRAINT meminjam_pk PRIMARY KEY(id_anggota,
                                     id_barang,
-                                    tanggal_pinjam)
+                                    tanggal_pinjam);

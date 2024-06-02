@@ -1,15 +1,15 @@
 --Insert Pinjam Trigger
 CREATE OR REPLACE TRIGGER insert_meminjam_pinjam
-AFTER INSERT OF id_anggota, id_barang, tanggal_pinjam, jumlah_pinjam ON MEMINJAM
+AFTER INSERT ON MEMINJAM
 FOR EACH ROW
 DECLARE
-    v_stock INT;
+    v_stock BARANG.jumlah_stok%type;
 BEGIN
     SELECT jumlah_stok INTO v_stock
     FROM BARANG
     WHERE id_barang = :NEW.id_barang;
     
-    v_stock:=v_stock-NEW.jumlah_pinjam
+    v_stock := v_stock - :NEW.jumlah_pinjam;
     UPDATE BARANG SET jumlah_stok=v_stock 
     WHERE id_barang = :NEW.id_barang;  
 END;
@@ -20,7 +20,7 @@ CREATE OR REPLACE TRIGGER update_meminjam_kembali
 AFTER UPDATE OF tanggal_pengembalian ON MEMINJAM 
 FOR EACH ROW
 DECLARE
-    v_stock INT;
+    v_stock BARANG.jumlah_stok%type;
 BEGIN
         SELECT jumlah_stok INTO v_stock
         FROM BARANG
@@ -33,11 +33,12 @@ END;
 
 --Procedure Pinjam
 CREATE OR REPLACE PROCEDURE pinjam(
-    v_id_anggota ANGGOTA.id_anggota%type,
-    v_id_barang  BARANG.id_barang%type,
-    v_jumlah_pinjam BARANG.jumlah_pinjam%type
+    v_id_anggota IN MEMINJAM.id_anggota%type,
+    v_id_barang  IN MEMINJAM.id_barang%type,
+    v_jumlah_pinjam IN MEMINJAM.jumlah_pinjam%type
 ) 
-    v_jumlah_stok INT;
+AS
+    v_jumlah_stok BARANG.jumlah_stok%type;
 BEGIN
     SELECT jumlah_stok INTO v_jumlah_stok FROM BARANG
     WHERE id_barang = v_id_barang;
@@ -53,27 +54,39 @@ END;
 
 --Procedure Kembali
 CREATE OR REPLACE PROCEDURE kembali(
-    v_id_anggota ANGGOTA.id_anggota%type,
-    v_id_barang  BARANG.id_barang%type,
+    v_id_anggota MEMINJAM.id_anggota%type,
+    v_id_barang  MEMINJAM.id_barang%type,
     v_tanggal_pinjam MEMINJAM.tanggal_pinjam%type
 )
-AS  
+AS
     v_old_tanggal_pengembalian MEMINJAM.tanggal_pengembalian%type;
-
-    SELECT tanggal_pengembalian INTO v_old_tanggal_pengembalian
-    FROM MEMINJAM WHERE id_anggota = v_id_anggota AND id_barang = v_id_barang AND tanggal_pinjam = v_tanggal_pinjam; 
-
-    v_tanggal_pengembalian MEMINJAM.tanggal_pengembalian%type := SYSTIMESTAMP;
 BEGIN
-    IF :v_old_tanggal_pengembalian IS NULL AND v_tanggal_pengembalian IS NOT NULL THEN
-        UPDATE MEMINJAM SET tanggal_pengembalian = SYSTIMESTAMP
-        WHERE id_anggota = v_id_anggota AND id_barang = v_id_barang AND tanggal_pinjam = v_tanggal_pinjam;
+    -- Attempt to retrieve the existing return date
+    BEGIN
+        SELECT tanggal_pengembalian INTO v_old_tanggal_pengembalian
+        FROM MEMINJAM 
+        WHERE id_anggota = v_id_anggota 
+          AND id_barang = v_id_barang 
+          AND tanggal_pinjam = v_tanggal_pinjam;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            v_old_tanggal_pengembalian := NULL;
+    END;
+
+    -- Check if the book has been returned
+    IF v_old_tanggal_pengembalian IS NULL THEN
+        UPDATE MEMINJAM 
+        SET tanggal_pengembalian = SYSTIMESTAMP
+        WHERE id_anggota = v_id_anggota 
+          AND id_barang = v_id_barang 
+          AND tanggal_pinjam = v_tanggal_pinjam;
         DBMS_OUTPUT.PUT_LINE('Berhasil Dikembalikan!');
-    ELSE  
+    ELSE
         DBMS_OUTPUT.PUT_LINE('Buku Sudah Dikembalikkan!');
     END IF;
 END;
 /
+
 
 --Procedure Pemasukkan
 CREATE OR REPLACE PROCEDURE pemasukkan(
@@ -82,21 +95,28 @@ CREATE OR REPLACE PROCEDURE pemasukkan(
     v_keterangan KEUANGAN_DIVISI.keterangan%type
 )
 AS
-    latest_saldo int;
-    newest_saldo int;
+    latest_saldo KEUANGAN_DIVISI.saldo%type := 0;
+    newest_saldo KEUANGAN_DIVISI.saldo%type;
 BEGIN
-     SELECT saldo
-     INTO latest_saldo
-     FROM KEUANGAN_DIVISI
-     WHERE id_divisi = v_id_divisi
-     ORDER BY tanggal DESC
-     FETCH FIRST ROW ONLY;
-     newest_saldo:=latest_saldo+v_total_pemasukkan;
+    BEGIN
+        SELECT saldo
+        INTO latest_saldo
+        FROM KEUANGAN_DIVISI
+        WHERE id_divisi = v_id_divisi
+        ORDER BY tanggal DESC
+        FETCH FIRST ROW ONLY;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            latest_saldo := 0;
+    END;
+
+    newest_saldo := latest_saldo + v_total_pemasukkan;
 
     INSERT INTO KEUANGAN_DIVISI (id_divisi, tanggal, pemasukkan, keterangan, saldo)
     VALUES (v_id_divisi, SYSTIMESTAMP, v_total_pemasukkan, v_keterangan, newest_saldo);
 END;
 /
+
 
 --Procedure Pengeluaran
 CREATE OR REPLACE PROCEDURE pengeluaran(

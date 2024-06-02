@@ -47,7 +47,7 @@ BEGIN
         VALUES(v_id_anggota, v_id_barang, SYSTIMESTAMP, v_jumlah_pinjam);
         DBMS_OUTPUT.PUT_LINE('Berhasil Dipinjam!');
     ELSE
-        RAISE_APPLICATION_ERROR(-20001, 'Jumlah Peminjaman Melebihi Stok Buku Tersedia!');
+        DBMS_OUTPUT.PUT_LINE('Error: Jumlah Peminjaman Melebihi Stok Buku Tersedia!');
     END IF;
 END;
 /
@@ -82,7 +82,7 @@ BEGIN
           AND tanggal_pinjam = v_tanggal_pinjam;
         DBMS_OUTPUT.PUT_LINE('Berhasil Dikembalikan!');
     ELSE
-        DBMS_OUTPUT.PUT_LINE('Buku Sudah Dikembalikkan!');
+        DBMS_OUTPUT.PUT_LINE('Error: Buku Sudah Dikembalikkan!');
     END IF;
 END;
 /
@@ -114,6 +114,7 @@ BEGIN
 
     INSERT INTO KEUANGAN_DIVISI (id_divisi, tanggal, pemasukkan, keterangan, saldo)
     VALUES (v_id_divisi, SYSTIMESTAMP, v_total_pemasukkan, v_keterangan, newest_saldo);
+    DBMS_OUTPUT.PUT_LINE('Pemasukkan berhasil dicatat!');
 END;
 /
 
@@ -121,21 +122,35 @@ END;
 --Procedure Pengeluaran
 CREATE OR REPLACE PROCEDURE pengeluaran(
     v_id_divisi KEUANGAN_DIVISI.id_divisi%type,
-    v_total_pengeluaran KEUANGAN_DIVISI.pemasukkan%type,
+    v_total_pengeluaran KEUANGAN_DIVISI.pengeluaran%type,
     v_keterangan KEUANGAN_DIVISI.keterangan%type
 )
 AS
-    latest_saldo int;
-    newest_saldo int;
+    latest_saldo KEUANGAN_DIVISI.saldo%type;
+    newest_saldo KEUANGAN_DIVISI.saldo%type;
 BEGIN
-     SELECT saldo
-     INTO latest_saldo
-     FROM KEUANGAN_DIVISI
-     WHERE id_divisi = v_id_divisi
-     ORDER BY tanggal DESC
-     FETCH FIRST ROW ONLY;
-     newest_saldo:=latest_saldo-v_total_pengeluaran;
-    INSERT INTO KEUANGAN_DIVISI (id_divisi, tanggal, pengeluaran, keterangan, saldo)
-    VALUES (v_id_divisi, SYSTIMESTAMP, v_total_pengeluaran, v_keterangan, newest_saldo);
+    BEGIN
+        SELECT saldo
+        INTO latest_saldo
+        FROM KEUANGAN_DIVISI
+        WHERE id_divisi = v_id_divisi
+        ORDER BY tanggal DESC
+        FETCH FIRST ROW ONLY;
+    EXCEPTION
+        WHEN NO_DATA_FOUND THEN
+            latest_saldo := 0;
+    END;
+    
+    IF v_total_pengeluaran > latest_saldo THEN
+        DBMS_OUTPUT.PUT_LINE('Error: Pengeluaran melebihi saldo terkini!');
+    ELSE
+        newest_saldo := latest_saldo - v_total_pengeluaran;
+
+        INSERT INTO KEUANGAN_DIVISI (id_divisi, tanggal, pengeluaran, keterangan, saldo)
+        VALUES (v_id_divisi, SYSTIMESTAMP, v_total_pengeluaran, v_keterangan, newest_saldo);
+
+        DBMS_OUTPUT.PUT_LINE('Pengeluaran berhasil dicatat!');
+    END IF;
 END;
 /
+

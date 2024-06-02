@@ -1,110 +1,87 @@
---DDL
-
-CREATE TABLE BARANG(
-    id_barang           INT NOT NULL PRIMARY KEY,
-    nama_barang         VARCHAR(100) NOT NULL,
-    jumlah_stok         INT NOT NULL,
-    batas_pinjam        INT NOT NULL,
-    dendaPerHari        INT NOT NULL,
-    id_jenis_barang     VARCHAR(100) NOT NULL,
+--DDL Table Jenis_Barang
+CREATE TABLE JENIS_BARANG(
+    id_jenis_barang          CHAR(5) NOT NULL,
+    deskripsi_jenis_barang   VARCHAR(100) NOT NULL,
 );
+
+ALTER TABLE JENIS_BARANG ADD CONSTRAINT jenis_barang_pk PRIMARY KEY(id_jenis_barang);
+
+--DDL Table Barang
+CREATE TABLE BARANG(
+    id_barang           CHAR(5) NOT NULL,
+    nama_barang         VARCHAR(100) NOT NULL,
+    jumlah_stok         INT,
+    batas_pinjam        INT,
+    dendaPerHari        INT,
+    id_jenis_barang     CHAR(5) NOT NULL,
+);
+
 
 ALTER TABLE BARANG ADD CONSTRAINT barang_pk PRIMARY KEY(id_barang);
 
+--DDL Table Divisi
+CREATE TABLE DIVISI(
+    id_divisi                   CHAR(4) NOT NULL,
+    nama_divisi_singkat         VARCHAR(100) NOT NULL,
+    nama_divisi_panjang         VARCHAR(100)
+);
+
+ALTER TABLE DIVISI ADD CONSTRAINT divisi_pk PRIMARY KEY(id_divisi);
+
+
+--DDL Table Sub-Divisi
+CREATE TABLE SUB_DIVISI(
+    id_sub_divisi              CHAR(4) NOT NULL,
+    nama_sub_divisi            VARCHAR(100)
+);
+ALTER TABLE SUB_DIVISI ADD CONSTRAINT sub_divisi_pk PRIMARY KEY(id_sub_divisi);
+
+--DDL Table Anggota
 CREATE TABLE ANGGOTA(
-    id_anggota          INT NOT NULL PRIMARY KEY,
+    id_anggota          INT NOT NULL,
     nama_anggota        VARCHAR(100) NOT NULL,
     nim_anggota         CHAR(9) NOT NULL,
-    no_hp               VARCHAR(15) NOT NULL,
-    alamat              VARCHAR(100)
+    id_divisi           CHAR(4) NOT NULL,
+    id_sub_divisi       CHAR(4) NOT NULL,
 );
 
 ALTER TABLE ANGGOTA ADD CONSTRAINT anggota_pk PRIMARY KEY(id_anggota);
+ALTER TABLE ANGGOTA ADD CONSTRAINT divisi_fk FOREIGN KEY(id_divisi) REFERENCES DIVISI(id_divisi);
+ALTER TABLE ANGGOTA ADD CONSTRAINT sub_divisi_fk FOREIGN KEY(id_sub_divisi) REFERENCES SUB_DIVISI(id_sub_divisi);
 
+
+--DDL Table Keuangan Divisi
+CREATE TABLE KEUANGAN_DIVISI(
+    id_divisi    CHAR(4) NOT NULL,
+    tanggal      TIMESTAMP NOT NULL,
+    pemasukkan   INT,
+    pengeluaran  INT,
+    keterangan   VARCHAR(255),
+    saldo        INT NOT NULL,
+);
+
+ALTER TABLE KEUANGAN_DIVISI ADD CONSTRAINT keuangan_divisi_pk PRIMARY KEY(id_divisi, tanggal);
+ALTER TABLE KEUANGAN_DIVISI ADD CONSTRAINT keuangan_divisi_fk FOREIGN KEY(id_divisi) REFERENCES DIVISI(id_divisi);
+
+--DDL Table Meminjam
 CREATE TABLE MEMINJAM(
     id_anggota              INT NOT NULL,
-    id_barang               INT NOT NULL,
-    tanggal_pinjam          DATETIME NOT NULL,
-    tanggal_pengembalian    DATETIME,
+    id_barang               CHAR(5) NOT NULL,
+    tanggal_pinjam          TIMESTAMP NOT NULL,
+    tanggal_pengembalian    TIMESTAMP,
     jumlah_pinjam           INT NOT NULL,
     denda                   INT,
 );
 
 ALTER TABLE MEMINJAM
-ADD CONSTRAINT meminjam_anggota_fk FOREIGN KEY(id_barang)
+ADD CONSTRAINT meminjam_anggota_fk FOREIGN KEY(id_anggota)
 REFERENCES ANGGOTA(id_anggota)
 
 ALTER TABLE MEMINJAM
 ADD CONSTRAINT meminjam_barang_fk FOREIGN KEY(id_barang)
-REFERENCES ANGGOTA(id_barang);
+REFERENCES BARANG(id_barang);
 
 ALTER TABLE MEMINJAM
 ADD CONSTRAINT meminjam_pk PRIMARY KEY(id_anggota,
                                     id_barang,
                                     tanggal_pinjam)
-
---TRIGGER
-
-CREATE OR REPLACE TRIGGER insert_meminjam_pinjam
-BEFORE INSERT OF id_anggota, id_barang, tanggal_pinjam, jumlah_pinjam ON MEMINJAM
-FOR EACH ROW
-DECLARE
-    v_stock INT;
-BEGIN
-    SELECT jumlah_stok INTO v_stock
-    FROM BARANG
-    WHERE id_barang = :NEW.id_barang;
-    
-    IF NEW.jumlah_pinjam <= v_stock THEN
-        v_stock:=v_stock-NEW.jumlah_pinjam
-        UPDATE BARANG SET jumlah_stok=v_stock WHERE id_barang = :NEW.id_barang;  
-    ELSE
-        RAISE_APPLICATION_ERROR(-20001, 'Jumlah Peminjaman Melebihi Stok Buku Tersedia!');
-    END IF;
-END;
-/
-
-CREATE OR REPLACE TRIGGER update_meminjam_kembali
-BEFORE UPDATE OF tanggal_pengembalian ON MEMINJAM 
-FOR EACH ROW
-DECLARE
-    returnDate INT;
-    borrowDate MEMINJAM.tanggal_pinjam%type;
-    borrowLimit BARANG.batas_pinjam%type;
-    fine BARANG.dendaPerHari%type;
-BEGIN
-    SELECT batas_pinjam INTO borrowLimit
-    FROM BARANG
-    WHERE 
-    returnDate := NEW.tanggal_pengembalian - borrowDate;
-    IF returnDate>borrowLimit
-
-    
-END;
-/
-
-CREATE OR REPLACE TRIGGER update_meminjam_kembali
-BEFORE UPDATE OF tanggal_pengembalian ON MEMINJAM 
-FOR EACH ROW
-DECLARE
-    returnDate INT;
-    borrowDate DATE;
-    borrowLimit INT;
-    fine INT;
-BEGIN
-    SELECT batas_pinjam, dendaPerHari INTO borrowLimit, fine
-    FROM BARANG
-    WHERE id_barang = NEW.id_barang;
-
-    -- Calculate the number of days overdue
-    borrowDate := NEW.tanggal_pinjam;
-    returnDate := TRUNC(:NEW.tanggal_pengembalian) - TRUNC(borrowDate);
-
-    IF returnDate > borrowLimit THEN
-        :NEW.denda := (returnDate - borrowLimit) * fine;
-    ELSE
-        :NEW.denda := 0;
-    END IF;
-END;
-/
-
